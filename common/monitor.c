@@ -1,0 +1,94 @@
+/**
+ * This is the main program for Test Tool.
+ * This reads the input parameters to the program and then reads the 
+ * config.json file, either at /var/montT/<id>/config.json or as the last
+ * parameter to the program.
+ *
+ */
+
+/**
+ * @file monitor.c
+ * @author Aseem Sethi
+ * @date 10 July 2016
+ * @brief File containing example of doxygen usage for quick reference.
+ *
+ * Here typically goes a more extensive explanation of what the header
+ * defines. Doxygens tags are words preceeded by either a backslash @\
+ * or by an at symbol @@.
+ * @see http://www.github.com
+ */
+
+#include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+#include "pthread.h"
+#include "errno.h"
+#include <sys/stat.h>
+#include "parser.h"
+#include "log.h"
+
+FILE *flog;
+pthread_t sslPID, sslPerfPID, httpPID, ovPID;
+
+jsonData_t* parse (char*, FILE *flog, char* configFile);
+void* bgpStart(void *args);
+
+
+startBgpThread (jsonData_t* jsonData) {
+	struct stat st;
+	char filePath[100];
+	
+	// Create BGP thread
+	log_debug(flog, "CUST: Create BGP thread.."); fflush(flog);
+	if (pthread_create(&httpPID, NULL, bgpStart, (void*)jsonData)) {
+		log_error(flog, "Error creating BGP Thread"); fflush(flog);
+		exit(1);
+	}
+	fflush(flog);
+}
+
+/*
+ * This is called with "prog", "name", "id". The "name" is the monitor 
+ * process that needs to be started. 
+ * Open the log file and read the config file
+ * Start the Monitor thread that has been requested.
+ *
+ *    ./tool 100 bgp [config-file]
+ */
+main(int argc, char *argv[]) {
+	jsonData_t* jsonData;
+	char filePath[200], configFile[200];
+
+	sprintf(filePath, "/var/monT/");
+	sprintf(&filePath[strlen("/var/monT/")], argv[1]);
+	sprintf(&filePath[strlen(filePath)], "/logs");
+	printf("\n %s", filePath);
+	flog = fopen(filePath, "a");
+	if (flog == NULL) {
+		printf("\nDir missing /var/monT/%s: Exiting mont_cust process",
+				argv[1]);
+		fflush(stdout); return;
+	}
+
+	if (argc == 4) {
+		log_debug(flog, "Tool Start with Config File: %d params:%s:%s:%s", argc, argv[1], argv[2], argv[3]);
+		jsonData = parse(argv[1], flog, argv[3]);
+	} else {
+		log_debug(flog, "Tool Start: %d params:%s:%s", argc, argv[1], argv[2]);
+		// Read in the config for customer id: argv[1]
+		jsonData = parse(argv[1], flog, NULL);
+	}
+	if (jsonData == NULL) {
+		log_error(flog, "Config error in /var/monT/%s: Exiting mont_cust process", argv[1]);
+		fflush(flog); 
+		goto error;
+	}
+	if(strcasecmp(argv[2], "bgp") == 0) {
+		log_info(flog, "BGP Testing..");
+		startBgpThread(jsonData);
+	}
+	fflush(flog);
+error:
+	// TBD : Start CLI parser thread here, vs sleeping
+	cliLoop();
+}

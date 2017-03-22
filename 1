@@ -60,7 +60,7 @@ main(int argc, char *argv[]) {
 	
 	if ( argc != 3 ) /* argc should be 2 for correct execution */   
         {         /* We print argv[0] assuming it is the program name */         
- 		printf( "usage: %s [CustID] bgp \n\n", argv[0] );    
+ 		printf( "usage: %s filename", argv[0] );    
 		exit(1);
 	}
 	jsonData_t* jsonData;
@@ -88,8 +88,7 @@ main(int argc, char *argv[]) {
 	if (jsonData == NULL) {
 		log_error(flog, "Config error in /var/monT/%s: Exiting mont_cust process", argv[1]);
 		fflush(flog); 
-		printf("\n Please provide config file as an argument\n");
-		exit(1);
+		goto error;
 	}
 	if(strcasecmp(argv[2], "bgp") == 0) {
 		log_info(flog, "BGP Testing..");

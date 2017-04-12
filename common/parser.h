@@ -40,5 +40,7 @@ typedef struct {
 	int nlriRepeat;
 	int nlriRepeatDelay;
 	int repeatUpdate;
+	int as_sequence;
+	int as_length;
 } jsonData_t;
 #endif

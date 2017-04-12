@@ -58,7 +58,7 @@ startBgpThread (jsonData_t* jsonData) {
 main(int argc, char *argv[]) {
 
 	
-	if ( argc != 3 ) /* argc should be 2 for correct execution */   
+	if ( argc != 3 ) /* argc should be 3 for correct execution */   
         {         /* We print argv[0] assuming it is the program name */         
  		printf( "usage: %s [CustID] bgp \n\n", argv[0] );    
 		exit(1);

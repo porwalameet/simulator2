@@ -23,7 +23,7 @@ void yyerror(char*);
 <BGP_s>\n			{printf("bgp>"); return NL;}
 <SSL_s>\n			{printf("ssl>"); return NL;}
 <OV_s>\n			{printf("ov>"); return NL;}
-\n					{printf("select>"); return NL;}
+\n					{printf("Test running.."); return NL;}
 [A-Za-z0-9]+		;
 [ \t]				;
 [\?]				return HELP;

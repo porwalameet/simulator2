@@ -69,7 +69,7 @@ void* bgpStart(void *args) {
 
 	// TBD: For now use this to ensure that the listener runs and is 
 	// waiting for pkts
-	printf("\n Entering CLI loop"); fflush(stdout);
+	printf("\n Tool Started : Running BGP "); fflush(stdout);
 	//mainShell();
 	while(1) {
 		sleep(5); 

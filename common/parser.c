@@ -67,8 +67,9 @@ jsonData_t* parse (char* id, FILE *flog, char* configFile) {
 		log_error(flog, "malloc error in parser");
 		exit(1);
 	}
-    r = jsmn_parse(&p, buff, len, tok, tokcount);
-    if (r < 0) {
+	
+	r = jsmn_parse(&p, buff, len, tok, tokcount);
+    	if (r < 0) {
             if (r == JSMN_ERROR_NOMEM) {
 				log_error(flog, "Parse: Allocate more mem to tok"); return NULL; }
 			if (ret == JSMN_ERROR_INVAL) {
@@ -91,30 +92,6 @@ jsonData_t* parse (char* id, FILE *flog, char* configFile) {
 				jsonData->custID = strtol(s, NULL,0);
 			} else if (jsoneq(buff, &tok[i], "serverIP") == 0) {
 				strcpy(jsonData->serverIP, s); 
-			} else if (jsoneq(buff, &tok[i], "sslPort") == 0) {
-				jsonData->sslPort = strtol(s, NULL,0); 
-			} else if (jsoneq(buff, &tok[i], "sslPerSec") == 0) {
-				jsonData->sslPerSec = strtol(s, NULL,0);
-			} else if (jsoneq(buff, &tok[i], "totalConn") == 0) {
-				jsonData->totalConn = strtol(s, NULL,0); 
-			} else if (jsoneq(buff, &tok[i], "helloPerSec") == 0) {
-				jsonData->helloPerSec = strtol(s, NULL,0);
-			} else if (jsoneq(buff, &tok[i], "totalHello") == 0) {
-				jsonData->totalHello = strtol(s, NULL,0); 
-			} else if (jsoneq(buff, &tok[i], "url") == 0) {
-				strncpy(jsonData->url, buff + tok[i+1].start,  tok[i+1].end-tok[i+1].start); jsonData->url[tok[i+1].end-tok[i+1].start] = '\0';
-			} else if (jsoneq(buff, &tok[i], "httpVerbose") == 0) {
-				jsonData->httpVerbose = strtol(s, NULL,0);
-			} else if (jsoneq(buff, &tok[i], "httpParallel") == 0) {
-				jsonData->httpParallel = strtol(s, NULL,0);
-			} else if (jsoneq(buff, &tok[i], "pktSize") == 0) {
-				jsonData->pktSize = strtol(s, NULL,0);
-			} else if (jsoneq(buff, &tok[i], "httpRepeat") == 0) {
-				jsonData->httpRepeat = strtol(s, NULL,0);
-// OpenVPN Params
-			} else if (jsoneq(buff, &tok[i], "ovProto") == 0) {
-				strcpy(jsonData->ovProto, s); 
-// BGP Stuff
 			} else if (jsoneq(buff, &tok[i], "routerID") == 0) {
 				strcpy(jsonData->routerID, s); 
 			} else if (jsoneq(buff, &tok[i], "version") == 0) {
@@ -143,6 +120,10 @@ jsonData_t* parse (char* id, FILE *flog, char* configFile) {
 				pathIndex++;
 			} else if (jsoneq(buff, &tok[i], "path len") == 0) {
 				jsonData->pathLen[pathIndex] = strtol(s, NULL,0);
+			} else if (jsoneq(buff, &tok[i], "as sequence") == 0) {
+				jsonData->as_sequence = strtol(s, NULL,0);
+			} else if (jsoneq(buff, &tok[i], "as length") == 0) {
+				jsonData->as_length = strtol(s, NULL,0);
 // BGP Stuff - NRI
 			} else if (jsoneq(buff, &tok[i], "nlri len") == 0) {
 				jsonData->nlriLen[nIndex] = strtol(s, NULL,0);
@@ -167,13 +148,3 @@ jsonData_t* parse (char* id, FILE *flog, char* configFile) {
 	return jsonData;
 }
 
-/*
-main() {
-	FILE *fc;
-	jsonData_t* jsonData;
-
-	fc = fopen("/var/monT/100/config.json", "a");
-	jsonData = parse("100", stdout, NULL);
-	cliLoop();
-}
-*/

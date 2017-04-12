@@ -19,7 +19,7 @@ CLIsendUpdate(char *fileName) {
         printf("Update file %s not present..", filePath); fflush(stdout);
         return -1;
     }
-    sendUpdateFile(&bgp, fu);
+    //sendUpdateFile(&bgp, fu);
 }
 
 CLIsendWithdraw(char *fileName) {
@@ -32,6 +32,6 @@ CLIsendWithdraw(char *fileName) {
         printf("Withdraw file %s not present..", filePath); fflush(stdout);
         return -1;
     }
-    sendUpdateWithdrawFile(&bgp, fw);
+    //sendUpdateWithdrawFile(&bgp, fw);
 }
 

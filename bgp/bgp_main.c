@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define MAX_ROUTES 800 
 FILE *fp;
 FILE *fbgpStats;
 //#define PKT_DEBUG 1
@@ -36,10 +37,19 @@ sendBgpData (bgp_t *bgp, uchar *ptr, int length) {
     fflush(fp);
 }
 
+
+
+
+
 putBgpHdr(char *buff, int type) {
 	memset(buff, 0xff, 16);
 	buff[18] = type;
 }
+
+
+
+
+
 
 sendKeepalive (bgp_t *bgp) {
 	struct bgp_open open;
@@ -48,69 +58,20 @@ sendKeepalive (bgp_t *bgp) {
 	memset(open.bgpo_marker, 0xFF, 16);
 	open.bgpo_len = htons(19);
 	open.bgpo_type = BGP_KEEPALIVE;
-
 	sendBgpData(bgp, (uchar*)&open, 19);
 }
 
-int sendUpdateWithdrawFile (bgp_t *bgp, FILE* fw) {
-	struct bgp_update update;
-	struct bgp_withdrawn *w;
-	int i, j, len, index, totalIndex, pathAttrLen;
-	jsonData_t *jsonData = bgp->jsonData;
-    struct sockaddr_in addr;
-	uchar buff[22];
-	int val;
-	char *status;
 
-	log_info(fp, "BGP: Send UPDATE Withdraw"); fflush(stdout);
-	memset(update.bgpo_marker, 0xFF, 16);
-	update.bgpo_type = BGP_UPDATE;
-	len = 21;  // 19 bytes fixed + 2 bytes for len of WithdrawnLen
-	index = 0;
 
-	// Read from Withdraw File
-   	while (1) {
-		status = fgets(buff, 20, fw);
-		if (status == NULL) {
-			printf("EOF recvd"); break;
-		}
-		val = (int)strtol(buff, (char **)NULL, 10);
-		fgets(buff, 20, fw);
-		printf("\n Withdraw Prefix: %d, Addr:%s", val, buff);
-		if(inet_aton(buff, &addr.sin_addr)==0){
-   			log_error(fp, "inet_aton() failed\n"); fflush(fp);
-			printf("\n inet_aton error !!"); fflush(stdout);
-   		}
-		update.ext[index++] = val;
-		PUT_BE32(&update.ext[index], htonl(addr.sin_addr.s_addr));
-		index += 4; len += 5;
-	}
-
-	update.withdrawnLen = htons(index);
-
-	// Len of 0 for Path Attributes
-	PUT_BE16(&update.ext[index], 0);
-	len +=2;
-	update.bgpo_len = htons(len);
-
-#ifdef PKT_DEBUG
-	printf("\nBGP UPDATE Withdraw: Len:%d", len);
-	for (i=0;i<len;i++)
-		printf(" %2X", ((uchar*)&update)[i]);
-#endif
-	sendBgpData(bgp, (uchar*)&update, len);
-	return 1;
-}
 
 sendUpdateWithdraw (bgp_t *bgp) {
 	struct bgp_update update;
 	struct bgp_withdrawn *w;
 	int i, j, len, index, totalIndex, pathAttrLen;
 	jsonData_t *jsonData = bgp->jsonData;
-    struct sockaddr_in addr;
+        struct sockaddr_in addr;
 	int saveIndexForPathAttrLen = 0;
 	int start = 0;
-#define MAX_ROUTES 800 
 	int end = MAX_ROUTES;
 	int leaveLoop = 0;
 	int count = jsonData->nlriRepeat;
@@ -157,97 +118,20 @@ again:
 	start += MAX_ROUTES; end += MAX_ROUTES; 
 	printf("  Sent: %d, Send Update for remaining: %d", end-start, count);
 	{struct timespec ts;
-    ts.tv_sec = 0; ts.tv_nsec = 800000000;
-    nanosleep(&ts, NULL);}
+	ts.tv_sec = 0; ts.tv_nsec = 800000000;
+        nanosleep(&ts, NULL);}
 	goto again;
 }
 
-sendUpdateFile (bgp_t *bgp, FILE* fu) {
-	struct bgp_update update;
-	struct bgp_withdrawn *w;
-	int i, j, len, index, totalIndex, pathAttrLen;
-	jsonData_t *jsonData = bgp->jsonData;
-    	struct sockaddr_in addr;
-	int saveIndexForPathAttrLen = 0;
-	uchar buff[22];
-	int val;
-	char  *status;
-
-	log_info(fp, "BGP: Send UPDATE"); fflush(stdout);
-	memset(update.bgpo_marker, 0xFF, 16);
-	update.bgpo_type = BGP_UPDATE;
-	len = 21;  // 19 bytes fixed + 2 bytes for len of WithdrawnLen
-
-	index = 0;
-	update.withdrawnLen = 0;
-
-	// Now save the index of where to put in the length for Path Attributes
-	saveIndexForPathAttrLen = index; // This is where pathAttrLen comes in
-	index += 2;
-	for (i=0;i<jsonData->pathIndex;i++) {
-		update.ext[index++] = jsonData->pathFlag[i];
-		update.ext[index++] = jsonData->pathType[i];
-		update.ext[index++] = jsonData->pathLen[i];
-		switch(jsonData->pathType[i]) {
-    		struct sockaddr_in addr;
-			case 1:  // ORIGIN
-				update.ext[index++] = jsonData->pathValue[i];
-				break;
-			case 2:  // AS PATH
-				break;
-			case 3: // NEXT HOP
-    			if(inet_aton(jsonData->pathValueNextHop[i], &addr.sin_addr)==0){
-            		log_error(fp, "inet_aton() failed\n"); fflush(fp);
-					printf("\n inet_aton error !!"); fflush(stdout);
-    			}
-				PUT_BE32(&update.ext[index], htonl(addr.sin_addr.s_addr));
-				index += 4;
-				break;
-			default:
-				printf("\n BGP UPDATE: unknown path type while building pkt");
-				break;
-		}
-	}
-	pathAttrLen = index; // This is the len of pathAttr
-	PUT_BE16(&update.ext[saveIndexForPathAttrLen], pathAttrLen-2);
-	len += pathAttrLen;
-	
-	// Read from Update File
-   	while (1) {
-		status = fgets(buff, 20, fu);
-		if (status == NULL) {
-			printf("\n EOF recvd"); break;
-		}
-		val = (int)strtol(buff, (char **)NULL, 10);
-		fgets(buff, 20, fu);
-		printf("\n Update Prefix: %d, Addr:%s", val, buff);
-		if(inet_aton(buff, &addr.sin_addr)==0){
-   			log_error(fp, "inet_aton() failed\n"); fflush(fp);
-			printf("\n inet_aton error !!"); fflush(stdout);
-   		}
-		update.ext[index++] = val;
-		PUT_BE32(&update.ext[index], htonl(addr.sin_addr.s_addr));
-		index += 4; len += 5;
-	}
-	update.bgpo_len = htons(len);
-
-#ifdef PKT_DEBUG
-	printf("\nBGP UPDATE: Len:%d", len);
-	for (i=0;i<len;i++)
-		printf(" %2X", ((uchar*)&update)[i]);
-#endif
-	sendBgpData(bgp, (uchar*)&update, len);
-}
 
 sendUpdate (bgp_t *bgp) {
 	struct bgp_update update;
 	struct bgp_withdrawn *w;
 	int i, j, len, index, totalIndex, pathAttrLen;
 	jsonData_t *jsonData = bgp->jsonData;
-    struct sockaddr_in addr;
+        struct sockaddr_in addr;
 	int saveIndexForPathAttrLen = 0;
 	int start = 0;
-#define MAX_ROUTES 800 
 	int end = MAX_ROUTES;
 	int leaveLoop = 0;
 	int count = jsonData->nlriRepeat;
@@ -294,13 +178,17 @@ again:
 				update.ext[index++] = jsonData->pathValue[i];
 				break;
 			case 2:  // AS PATH
+				//AS_Sequence 02 || Length of AS# 01||  AS number(2B)
+				update.ext[index++] = jsonData->as_sequence;
+				update.ext[index++] = jsonData->as_length;
+				PUT_BE16(&update.ext[index], jsonData->myas);
+				index += 2;
 				break;
 			case 3: // NEXT HOP
-    			if(inet_aton(jsonData->pathValueNextHop[i], &addr.sin_addr)==0){
-            		log_error(fp, "inet_aton() failed\n"); fflush(fp);
-					printf("\n inet_aton error !!"); fflush(stdout);
-    			}
-				//log_info(fp, "BGP PathAttr NextHop= %x", addr.sin_addr.s_addr);
+    				if(inet_aton(jsonData->pathValueNextHop[i], &addr.sin_addr)==0){
+            			log_error(fp, "inet_aton() failed\n"); fflush(fp);
+				printf("\n inet_aton error !!"); fflush(stdout);
+    				}
 				PUT_BE32(&update.ext[index], htonl(addr.sin_addr.s_addr));
 				index += 4;
 				break;
@@ -373,7 +261,7 @@ sendOpen (bgp_t *bgp) {
 	open.bgpo_myas = htons(jsonData->myas);
 	open.bgpo_holdtime = 0;
 
-    if(inet_aton(jsonData->routerID, &bgp->routerID.sin_addr) == 0) {
+        if(inet_aton(jsonData->routerID, &bgp->routerID.sin_addr) == 0) {
 		log_error(fp, "BGP: inet_aton failed");
 		exit(1);
 	}
@@ -381,18 +269,15 @@ sendOpen (bgp_t *bgp) {
 	open.bgpo_id = bgp->routerID.sin_addr.s_addr;
 	open.bgpo_optlen = 0;
 
-	//for (i=0;i<29;i++)
-	//	printf(" %2X", ((uchar*)&open)[i]);
 	sendBgpData(bgp, (uchar*)&open, 29);
 }
 
 bgpPrintConfig(bgp_t *bgp) {
+
 	jsonData_t *jsonData = bgp->jsonData;
 	int i;
-
 	log_info(fp, "BGP Version= %d", jsonData->version);
 	log_info(fp, "My AS= %d", jsonData->myas);
-	// Send Update Message
 	log_info(fp, "Withdrawn len = %d", jsonData->withdrawnLen);
 	for(i=0;i<jsonData->wIndex;i++) {
 		log_info(fp, "Withdrawn prefix:%d, route:%s", 
@@ -401,25 +286,25 @@ bgpPrintConfig(bgp_t *bgp) {
 	log_info(fp, "Path Attr len = %d", jsonData->pathAttrLen);
 	for(i=0;i<jsonData->pathIndex;i++) {
 		switch(jsonData->pathType[i]) {
-    	struct sockaddr_in addr;
+    		struct sockaddr_in addr;
 		case 1:  // ORIGIN
 			log_info(fp, "Path Attributes: Flag:%d, Type:%d, Len:%d, Val:%d",
 			jsonData->pathFlag[i], jsonData->pathType[i], 
 			jsonData->pathLen[i], jsonData->pathValue[i]);
 			break;
 		case 2:  // AS PATH
-			log_info(fp, "\n Path Attributes: Flag:%d, Type:%d, Len:%d",
+			log_info(fp, "\n Path Attributes: Flag:%d, Type:%d, Len:%d, Val: %d",
 			jsonData->pathFlag[i], jsonData->pathType[i], 
-			jsonData->pathLen[i]);
+			jsonData->pathLen[i], jsonData->myas);
 			break;
 		case 3: // NEXT HOP
 			log_info(fp, "Path Attributes: Flag:%d, Type:%d, Len:%d",
 			jsonData->pathFlag[i], jsonData->pathType[i], 
 			jsonData->pathLen[i]);
-    		if(inet_aton(jsonData->pathValueNextHop[i], &addr.sin_addr)==0){
+    			if(inet_aton(jsonData->pathValueNextHop[i], &addr.sin_addr)==0){
            		log_error(fp, "inet_aton() failed\n"); fflush(fp);
 				log_info(fp, "BGP inet_aton error !!"); fflush(stdout);
-    		}
+    			}
 			log_info(fp, ", BGP PathAttr NextHop= %x", addr.sin_addr.s_addr);
 			break;
 		default:
@@ -437,21 +322,21 @@ bgpPrintConfig(bgp_t *bgp) {
 }
 
 initBgpConnection(bgp_t *bgp, jsonData_t* jsonData) {
-    struct sockaddr_in;
+    	struct sockaddr_in;
 	int arg, err;
 
-    if((bgp->sock=socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    	if((bgp->sock=socket(AF_INET, SOCK_STREAM, 0)) == -1) {
             perror("socket:");
             log_error(fp, "BGP ERROR: create creation socket"); fflush(fp);
             exit(1);
-    }
-    bgp->server_addr.sin_family = AF_INET;
-    bgp->server_addr.sin_port = htons(BGP_TCP_PORT);
-    if(inet_aton(jsonData->serverIP, &bgp->server_addr.sin_addr) == 0) {
+    	}
+    	bgp->server_addr.sin_family = AF_INET;
+    	bgp->server_addr.sin_port = htons(BGP_TCP_PORT);
+    	if(inet_aton(jsonData->serverIP, &bgp->server_addr.sin_addr) == 0) {
             log_error(fp, "inet_aton() failed\n");
             log_error(fp, "BGP ERROR: create in inet_aton"); fflush(fp);
-    }
-    log_info(fp, "BGP: Connect to %s", jsonData->serverIP); fflush(fp);
+    	}
+    	log_info(fp, "BGP: Connect to %s", jsonData->serverIP); fflush(fp);
 	// Set non-blocking 
 	if( (arg = fcntl(bgp->sock, F_GETFL, NULL)) < 0) { 
 		perror("F_GETFL:");
@@ -462,22 +347,22 @@ initBgpConnection(bgp_t *bgp, jsonData_t* jsonData) {
 		perror("F_SETFL:");
 		exit(0); 
 	} 
-    err = connect(bgp->sock, (struct sockaddr *)&bgp->server_addr,
+    	err = connect(bgp->sock, (struct sockaddr *)&bgp->server_addr,
                 sizeof(struct sockaddr));
-	if (errno != EINPROGRESS) {
+    	if (errno != EINPROGRESS) {
 		// Note: connect on blocking socket returns EINPROGRESS
-        log_error(fp, "BGP ERROR: create connecting to server"); fflush(fp);
-        log_error(fbgpStats, "BGP ERROR: create connecting to server");
-        fflush(fbgpStats);
-        perror("Connect Error:");
-        exit(1);
-    } else {
+        	log_error(fp, "BGP ERROR: create connecting to server"); fflush(fp);
+        	log_error(fbgpStats, "BGP ERROR: create connecting to server");
+        	fflush(fbgpStats);
+        	perror("Connect Error:");
+        	exit(1);
+    	} else {
 		/* struct timeval stTv;
 		fd_set write_fd; stTv.tv_sec = 20; stTv.tv_usec = 0;
-        FD_ZERO(&write_fd); FD_SET(bgp->sock,&write_fd);
-        select((bgp->sock+1), NULL, &write_fd, NULL, &stTv);
+        	FD_ZERO(&write_fd); FD_SET(bgp->sock,&write_fd);
+        	select((bgp->sock+1), NULL, &write_fd, NULL, &stTv);
 		*/
-//http://stackoverflow.com/questions/10187347/async-connect-and-disconnect-with-epoll-linux/10194883#10194883
+		//http://stackoverflow.com/questions/10187347/async-connect-and-disconnect-with-epoll-linux/10194883#10194883
 		int result;
 		socklen_t result_len = sizeof(result);
 		if (getsockopt(bgp->sock, SOL_SOCKET, SO_ERROR, 
@@ -492,9 +377,9 @@ initBgpConnection(bgp_t *bgp, jsonData_t* jsonData) {
 		// socket is ready for read()/write()
 		//log_info(fp, "TCP Connected.."); fflush(fp);
 	}
-    log_info(fp, "BGP TCP connection created to %s, sock:%d",
+    	log_info(fp, "BGP TCP connection created to %s, sock:%d",
         jsonData->serverIP, bgp->sock);
-    fflush(fp);
+    	fflush(fp);
 }
 
 void *bgpListener(bgp_t* bgp) {
@@ -581,8 +466,8 @@ void *bgpListener(bgp_t* bgp) {
 }
 
 int bgp_main(jsonData_t *jsonData, FILE *stats, FILE *logs) {
+	
 	pthread_t threadPID;
-
 	fp = logs;
 	fbgpStats = stats;
 	log_info(fp, "BGP started..."); fflush(fp);
@@ -594,6 +479,4 @@ int bgp_main(jsonData_t *jsonData, FILE *stats, FILE *logs) {
 		log_info(fp, "Error creating BGP Listener Thread"); fflush(stdout);
 		exit(1);
 	}
-	//sendUpdateWithdraw(&bgp); //withdraw
-	// while (1) sleep(2);
 }
